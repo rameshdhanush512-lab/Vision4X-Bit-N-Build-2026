@@ -20,7 +20,12 @@ async function request<T>(
     ...(options.headers ?? {}),
   };
 
-  const res = await fetch(`${BASE}${path}`, { ...options, headers });
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}${path}`, { ...options, headers });
+  } catch {
+    throw new Error('Backend unavailable. Start the server on http://localhost:3001.');
+  }
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: 'Request failed' }));
