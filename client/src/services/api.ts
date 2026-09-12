@@ -71,6 +71,15 @@ export const privacyApi = {
   getRequests: () =>
     request<{ requests: any[] }>('/privacy/requests'),
 
+  getRequestById: (id: string) =>
+    request<{ request: any }>(`/privacy/requests/${id}`),
+
+  sendRequest: (id: string) =>
+    request<{ success: boolean; status: string; requestId: string; emailPreviewUrl?: string; message: string }>(
+      `/privacy/requests/${id}/send`,
+      { method: 'POST' }
+    ),
+
   updateRequestStatus: (id: string, status: string) =>
     request<{ request: any }>(`/privacy/requests/${id}/status`, {
       method: 'PATCH', body: JSON.stringify({ status }),

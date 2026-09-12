@@ -134,6 +134,8 @@ model PrivacyRequest {
   status           RequestStatus @default(DRAFT)
   sentAt           DateTime?
   followUpDate     DateTime?
+  emailLog         Json?         // { messageId, previewUrl, to, subject, sentAt }
+  activityLog      Json?         // Array of { ts, stage, message }
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 
@@ -157,9 +159,12 @@ enum RequestStatus {
   READY
   SENT
   ACKNOWLEDGED
+  PROCESSING
+  VERIFIED
   COMPLETED
   REJECTED
   EXPIRED
+  FAILED
 }
 
 // ─────────────────────────────────────────────

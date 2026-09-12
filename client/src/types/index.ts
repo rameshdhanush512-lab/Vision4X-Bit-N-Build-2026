@@ -8,7 +8,22 @@ export type ExposureStatus =
   | 'DETECTED' | 'ANALYZING' | 'ACTION_REQUIRED'
   | 'REQUEST_SENT' | 'FOLLOW_UP_REQUIRED' | 'RESOLVED' | 'FALSE_POSITIVE';
 export type RequestStatus =
-  | 'DRAFT' | 'READY' | 'SENT' | 'ACKNOWLEDGED' | 'COMPLETED' | 'REJECTED' | 'EXPIRED';
+  | 'DRAFT' | 'READY' | 'SENT' | 'ACKNOWLEDGED'
+  | 'PROCESSING' | 'VERIFIED' | 'COMPLETED'
+  | 'REJECTED' | 'EXPIRED' | 'FAILED';
+
+export interface ActivityEntry {
+  ts: string;
+  stage: string;
+  message: string;
+}
+
+export interface EmailLog {
+  messageId?: string;
+  previewUrl?: string;
+  to?: string;
+  subject?: string;
+}
 export type FollowUpStatus = 'PENDING' | 'DUE' | 'COMPLETED' | 'SKIPPED';
 
 export interface User {
@@ -70,8 +85,10 @@ export interface PrivacyRequest {
   status: RequestStatus;
   sentAt?: string;
   followUpDate?: string;
+  emailLog?: EmailLog;
+  activityLog?: ActivityEntry[];
   createdAt: string;
-  exposure?: { source: string; dataTypes: string[] };
+  exposure?: { source: string; dataTypes: string[]; riskAssessment?: { riskLevel: string; riskScore: number } };
 }
 
 export interface FollowUp {

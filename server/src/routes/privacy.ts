@@ -5,6 +5,8 @@ import {
   getExposureById,
   createPrivacyRequest,
   getPrivacyRequests,
+  getPrivacyRequestById,
+  sendPrivacyRequest,
   getFollowUps,
   verifyExposure,
   updateRequestStatus,
@@ -22,6 +24,8 @@ router.get('/exposures', getExposures);
 router.get('/exposures/:id', getExposureById);
 router.post('/request', createPrivacyRequest);
 router.get('/requests', getPrivacyRequests);
+router.get('/requests/:id', getPrivacyRequestById);
+router.post('/requests/:id/send', sendPrivacyRequest);
 router.patch('/requests/:id/status', updateRequestStatus);
 router.get('/followups', getFollowUps);
 router.post('/verify', verifyExposure);

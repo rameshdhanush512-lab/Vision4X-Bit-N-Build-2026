@@ -3,6 +3,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { prisma } from '../utils/prisma';
 import { runPrivacyWorkflow } from '../graph/privacyGraph';
 import { logger } from '../utils/logger';
+import { sendPrivacyRequestEmail } from '../services/emailService';
+import { runDemoProcessingWorkflow, ActivityEntry } from '../services/requestWorkflow';
 
 // POST /api/privacy/analyze  — re-run risk analysis on a specific exposure
 export async function analyzeExposure(req: Request, res: Response): Promise<void> {
@@ -245,7 +247,7 @@ export async function verifyExposure(req: Request, res: Response): Promise<void>
 // PATCH /api/privacy/requests/:id/status
 export async function updateRequestStatus(req: Request, res: Response): Promise<void> {
   const { status } = req.body;
-  const validStatuses = ['DRAFT', 'READY', 'SENT', 'ACKNOWLEDGED', 'COMPLETED', 'REJECTED', 'EXPIRED'];
+  const validStatuses = ['DRAFT', 'READY', 'SENT', 'ACKNOWLEDGED', 'PROCESSING', 'VERIFIED', 'COMPLETED', 'REJECTED', 'EXPIRED', 'FAILED'];
 
   if (!status || !validStatuses.includes(status)) {
     res.status(400).json({ error: `status must be one of: ${validStatuses.join(', ')}` });
@@ -291,5 +293,160 @@ export async function updateRequestStatus(req: Request, res: Response): Promise<
   } catch (error) {
     logger.error('updateRequestStatus failed', error);
     res.status(500).json({ error: 'Failed to update request status' });
+  }
+}
+
+// GET /api/privacy/requests/:id
+export async function getPrivacyRequestById(req: Request, res: Response): Promise<void> {
+  try {
+    const request = await prisma.privacyRequest.findFirst({
+      where: { id: req.params.id, userId: req.user!.userId },
+      include: {
+        exposure: {
+          select: {
+            source: true,
+            dataTypes: true,
+            riskAssessment: { select: { riskLevel: true, riskScore: true } },
+          },
+        },
+      },
+    });
+    if (!request) {
+      res.status(404).json({ error: 'Request not found' });
+      return;
+    }
+    res.json({ request });
+  } catch (error) {
+    logger.error('getPrivacyRequestById failed', error);
+    res.status(500).json({ error: 'Failed to fetch request' });
+  }
+}
+
+// POST /api/privacy/requests/:id/send
+// Sends the actual email + starts the demo processing workflow
+export async function sendPrivacyRequest(req: Request, res: Response): Promise<void> {
+  const userId = req.user!.userId;
+  const requestId = req.params.id;
+
+  try {
+    const privReq = await prisma.privacyRequest.findFirst({
+      where: { id: requestId, userId },
+      include: {
+        exposure: { select: { source: true, dataTypes: true } },
+        user: { select: { name: true, email: true } },
+      },
+    });
+
+    if (!privReq) {
+      res.status(404).json({ error: 'Request not found' });
+      return;
+    }
+
+    if (!['READY', 'DRAFT'].includes(privReq.status)) {
+      res.status(400).json({ error: `Cannot send a request with status ${privReq.status}` });
+      return;
+    }
+
+    // ── 1. Build initial activity log entry
+    const now = new Date().toISOString();
+    const initialLog: ActivityEntry[] = [
+      { ts: now, stage: 'CREATED', message: 'Privacy request prepared and validated' },
+      { ts: new Date().toISOString(), stage: 'SENDING', message: `Sending data-removal email to ${privReq.targetOrg}` },
+    ];
+
+    await prisma.privacyRequest.update({
+      where: { id: requestId },
+      data: { activityLog: initialLog as any },
+    });
+
+    // ── 2. Send the actual email (Ethereal demo SMTP)
+    const emailResult = await sendPrivacyRequestEmail({
+      toEmail: `dpo@${privReq.targetOrg.toLowerCase().replace(/[^a-z0-9]/g, '')}.example.com`,
+      toOrg: privReq.targetOrg,
+      fromName: privReq.user.name,
+      fromEmail: privReq.user.email,
+      requestId,
+      requestType: privReq.requestType,
+      body: privReq.generatedRequest,
+    });
+
+    if (!emailResult.success) {
+      // Store failure in log and mark FAILED
+      const failLog: ActivityEntry[] = [
+        ...initialLog,
+        {
+          ts: new Date().toISOString(),
+          stage: 'FAILED',
+          message: `Email delivery failed: ${emailResult.error}`,
+        },
+      ];
+      await prisma.privacyRequest.update({
+        where: { id: requestId },
+        data: { status: 'FAILED', activityLog: failLog as any },
+      });
+      res.status(502).json({ error: 'Email sending failed', detail: emailResult.error });
+      return;
+    }
+
+    // ── 3. Mark SENT, store email log
+    const sentLog: ActivityEntry[] = [
+      ...initialLog,
+      {
+        ts: new Date().toISOString(),
+        stage: 'SENT',
+        message: `Email sent successfully (ID: ${emailResult.messageId?.slice(0, 20)}…)`,
+      },
+    ];
+
+    await prisma.privacyRequest.update({
+      where: { id: requestId },
+      data: {
+        status: 'SENT',
+        sentAt: new Date(),
+        emailLog: emailResult as any,
+        activityLog: sentLog as any,
+      },
+    });
+
+    // Update linked exposure
+    await prisma.exposure.update({
+      where: { id: privReq.exposureId },
+      data: { status: 'REQUEST_SENT' },
+    });
+
+    // Schedule follow-up 14 days out (skip if already exists)
+    const existingFollowUp = await prisma.followUp.findFirst({
+      where: { privacyRequestId: requestId },
+    });
+    if (!existingFollowUp) {
+      const followUpDate = new Date();
+      followUpDate.setDate(followUpDate.getDate() + 14);
+      await prisma.followUp.create({
+        data: {
+          userId,
+          privacyRequestId: requestId,
+          scheduledAt: followUpDate,
+          notes: 'Auto-scheduled by PRIVEX — verify if organisation responded',
+        },
+      });
+    }
+
+    // ── 4. Respond to client immediately (email sent)
+    res.json({
+      success: true,
+      status: 'SENT',
+      requestId,
+      emailPreviewUrl: emailResult.previewUrl,
+      message: 'Privacy request email sent successfully. Demo processing workflow started.',
+    });
+
+    // ── 5. Run demo processing workflow in background (no await)
+    runDemoProcessingWorkflow(requestId, userId, privReq.targetOrg).catch((err) => {
+      logger.error('Background demo workflow error', { requestId, err });
+    });
+
+  } catch (error) {
+    logger.error('sendPrivacyRequest failed', error);
+    res.status(500).json({ error: 'Failed to send privacy request' });
   }
 }
