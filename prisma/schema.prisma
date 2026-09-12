@@ -1,0 +1,213 @@
+// PRIVEX — Prisma Schema
+// PostgreSQL + Prisma ORM
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────
+// USER
+// ─────────────────────────────────────────────
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  exposures        Exposure[]
+  privacyRequests  PrivacyRequest[]
+  agentRuns        AgentRun[]
+  followUps        FollowUp[]
+
+  @@map("users")
+}
+
+// ─────────────────────────────────────────────
+// EXPOSURE
+// ─────────────────────────────────────────────
+model Exposure {
+  id              String         @id @default(uuid())
+  userId          String
+  source          String         // e.g. "Public Data Directory"
+  dataTypes       String[]       // e.g. ["email", "phone", "name"]
+  severityCandidate String       // raw candidate from scout
+  confidence      Float          // 0.0 – 1.0
+  evidence        String
+  rawData         Json?          // full scout output
+  status          ExposureStatus @default(DETECTED)
+  detectedAt      DateTime       @default(now())
+  resolvedAt      DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  riskAssessment    RiskAssessment?
+  privacyRequests   PrivacyRequest[]
+  verificationResults VerificationResult[]
+
+  @@map("exposures")
+}
+
+enum ExposureStatus {
+  DETECTED
+  ANALYZING
+  ACTION_REQUIRED
+  REQUEST_SENT
+  FOLLOW_UP_REQUIRED
+  RESOLVED
+  FALSE_POSITIVE
+}
+
+// ─────────────────────────────────────────────
+// RISK ASSESSMENT
+// ─────────────────────────────────────────────
+model RiskAssessment {
+  id           String     @id @default(uuid())
+  exposureId   String     @unique
+  riskLevel    RiskLevel
+  riskScore    Int        // 0–100
+  explanation  String     // plain-language explanation
+  factors      String[]   // risk factors identified
+  recommendation String
+  analyzedAt   DateTime   @default(now())
+  createdAt    DateTime   @default(now())
+
+  exposure Exposure @relation(fields: [exposureId], references: [id], onDelete: Cascade)
+
+  @@map("risk_assessments")
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+// ─────────────────────────────────────────────
+// AGENT RUN
+// ─────────────────────────────────────────────
+model AgentRun {
+  id          String      @id @default(uuid())
+  userId      String
+  scanId      String      // groups all agent runs for one scan session
+  agentName   String      // ORCHESTRATOR | SCOUT | RISK | RIGHTS | GUARDIAN
+  task        String
+  status      AgentStatus @default(WAITING)
+  result      String?
+  metadata    Json?
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime    @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("agent_runs")
+}
+
+enum AgentStatus {
+  WAITING
+  RUNNING
+  COMPLETED
+  FAILED
+  SKIPPED
+}
+
+// ─────────────────────────────────────────────
+// PRIVACY REQUEST
+// ─────────────────────────────────────────────
+model PrivacyRequest {
+  id               String        @id @default(uuid())
+  userId           String
+  exposureId       String
+  targetOrg        String
+  requestType      RequestType
+  reason           String
+  generatedRequest String        // the full letter/text
+  status           RequestStatus @default(DRAFT)
+  sentAt           DateTime?
+  followUpDate     DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exposure  Exposure   @relation(fields: [exposureId], references: [id], onDelete: Cascade)
+  followUps FollowUp[]
+
+  @@map("privacy_requests")
+}
+
+enum RequestType {
+  DATA_DELETION
+  DATA_CORRECTION
+  OPT_OUT
+  RIGHT_TO_ERASURE
+  ACCESS_REQUEST
+}
+
+enum RequestStatus {
+  DRAFT
+  READY
+  SENT
+  ACKNOWLEDGED
+  COMPLETED
+  REJECTED
+  EXPIRED
+}
+
+// ─────────────────────────────────────────────
+// FOLLOW UP
+// ─────────────────────────────────────────────
+model FollowUp {
+  id               String       @id @default(uuid())
+  userId           String
+  privacyRequestId String
+  scheduledAt      DateTime
+  status           FollowUpStatus @default(PENDING)
+  notes            String?
+  completedAt      DateTime?
+  createdAt        DateTime     @default(now())
+
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  privacyRequest PrivacyRequest @relation(fields: [privacyRequestId], references: [id], onDelete: Cascade)
+
+  @@map("follow_ups")
+}
+
+enum FollowUpStatus {
+  PENDING
+  DUE
+  COMPLETED
+  SKIPPED
+}
+
+// ─────────────────────────────────────────────
+// VERIFICATION RESULT
+// ─────────────────────────────────────────────
+model VerificationResult {
+  id          String             @id @default(uuid())
+  exposureId  String
+  method      String             // e.g. "manual_check" | "automated_recheck"
+  outcome     VerificationOutcome
+  notes       String?
+  verifiedAt  DateTime           @default(now())
+  createdAt   DateTime           @default(now())
+
+  exposure Exposure @relation(fields: [exposureId], references: [id], onDelete: Cascade)
+
+  @@map("verification_results")
+}
+
+enum VerificationOutcome {
+  STILL_EXPOSED
+  RESOLVED
+  PARTIAL
+  UNABLE_TO_VERIFY
+}
