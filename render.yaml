@@ -1,0 +1,37 @@
+# ─────────────────────────────────────────────
+# PRIVEX — Render.com Deployment
+# Free tier — no credit card required
+# ─────────────────────────────────────────────
+
+services:
+  - type: web
+    name: privex-server
+    runtime: node
+    rootDir: server
+    buildCommand: npm install && npx prisma generate && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: privex-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: CLIENT_ORIGIN
+        value: https://vision4x-privex.vercel.app
+      - key: OLLAMA_BASE_URL
+        value: http://localhost:11434
+      - key: OLLAMA_MODEL
+        value: llama3.2
+    healthCheckPath: /health
+
+databases:
+  - name: privex-db
+    databaseName: privex_db
+    plan: free
