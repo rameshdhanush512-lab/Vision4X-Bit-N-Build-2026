@@ -37,20 +37,24 @@ async function advance(
   // Read current log, append new entry
   const current = await prisma.privacyRequest.findUnique({
     where: { id: requestId },
-    select: { activityLog: true },
-  });
+    select: { activityLog: true } as any,
+  }) as { activityLog: unknown } | null;
 
-  const log: ActivityEntry[] = Array.isArray(current?.activityLog)
-    ? (current!.activityLog as unknown as ActivityEntry[])
-    : [];
+  const log: ActivityEntry[] = (() => {
+    try {
+      const raw = (current as any)?.activityLog;
+      const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      return Array.isArray(parsed) ? parsed : [];
+    } catch { return []; }
+  })();
   log.push(entry);
 
   await prisma.privacyRequest.update({
     where: { id: requestId },
     data: {
-      activityLog: log as any,
+      activityLog: JSON.stringify(log),
       ...(newStatus ? { status: newStatus as any } : {}),
-    },
+    } as any,
   });
 
   // Notify the frontend via Socket.IO

@@ -1,141 +1,357 @@
 # PRIVEX — Autonomous AI Privacy Guardian
 
-> **Team Vision4X** | Hackathon 2026
+> **Vision4X · Bit N Build 2026 Hackathon**
 
-PRIVEX is a multi-agent AI privacy guardian that discovers exposed personal information, evaluates privacy risk, prepares legal-grade removal requests, tracks follow-ups, and verifies resolutions — fully autonomously.
-
----
-
-## 🏆 Problem We Solve
-
-Ordinary people have no practical way to:
-- Know where their personal data is exposed
-- Understand how risky each exposure actually is
-- Submit professional data-removal requests
-- Track whether those requests were honoured
-
-PRIVEX automates this entire lifecycle using a coordinated team of AI agents.
+PRIVEX is a full-stack AI-powered application that autonomously discovers where your personal data is exposed online, assesses the risk, generates professional data-removal requests, and tracks the entire lifecycle — all driven by a multi-agent LLM workflow.
 
 ---
 
-## 🤖 Agent Architecture
+## Problem
+
+Personal data is scattered across hundreds of data brokers, public directories, leaked databases, and social aggregators. Most people have no idea how much of their information is publicly accessible, and the process of requesting its removal is manual, time-consuming, and legally complex.
+
+## Solution
+
+PRIVEX deploys a team of five autonomous AI agents that work in sequence:
+
+1. **ORCHESTRATOR** — plans the workflow using LLM reasoning
+2. **SCOUT** — scans approved data sources to discover exposed PII
+3. **RISK** — scores each exposure and explains the risk in plain English
+4. **RIGHTS** — generates professional GDPR/DPDP data-erasure request letters
+5. **GUARDIAN** — schedules follow-ups and tracks the removal lifecycle
+
+Every step is streamed live to the frontend via Socket.IO — users watch their privacy being protected in real time.
+
+---
+
+## Key Features
+
+- **5-agent LangGraph workflow** — orchestrated multi-agent pipeline with state management
+- **Real-time agent activity feed** — Socket.IO streaming of every agent step
+- **Privacy Protection Score** — dynamic score based on exposure severity and resolution status
+- **Attack Graph visualisation** — interactive SVG showing data exposure relationships
+- **Automated removal letters** — LLM-generated GDPR/DPDP-compliant erasure requests
+- **Email dispatch** — sends privacy request emails via Nodemailer (Ethereal demo SMTP)
+- **Demo processing workflow** — simulates the full acknowledgement → processing → verification → completion lifecycle
+- **Follow-up tracking** — auto-schedules 14-day follow-ups for sent requests
+- **JWT authentication** — secure session management with bcrypt password hashing
+- **Graceful LLM fallback** — all agent outputs have deterministic fallbacks when Ollama is unavailable
+
+---
+
+## Technology Stack
+
+### Frontend
+| Technology | Purpose |
+|---|---|
+| React 18 + TypeScript | UI framework |
+| Vite | Build tool |
+| Tailwind CSS | Styling |
+| React Router v6 | Client-side routing |
+| Recharts | Dashboard charts |
+| Socket.IO Client | Real-time agent events |
+| Lucide React | Icons |
+
+### Backend
+| Technology | Purpose |
+|---|---|
+| Node.js + Express | HTTP server |
+| TypeScript | Type safety |
+| Socket.IO | Real-time bidirectional events |
+| Prisma ORM | Database access |
+| SQLite (dev) / PostgreSQL (prod) | Database |
+| LangGraph (`@langchain/langgraph`) | Multi-agent workflow graph |
+| LangChain (`@langchain/community`) | LLM integration |
+| Ollama (`@langchain/ollama`) | Local LLM inference |
+| JWT + bcryptjs | Authentication |
+| Nodemailer | Email dispatch |
+| Helmet + express-rate-limit | Security |
+| Zod + express-validator | Input validation |
+
+---
+
+## Architecture
 
 ```
-USER INPUT
-    ↓
-ORCHESTRATOR AGENT  — plans, routes, handles failures
-    ↓
-SCOUT AGENT         — discovers exposed personal data
-    ↓
-RISK AGENT          — scores severity, explains WHY it matters
-    ↓
-RIGHTS AGENT        — generates professional removal requests
-    ↓
-GUARDIAN AGENT      — tracks, schedules follow-ups, verifies resolution
-    ↓
-MEMORY (PostgreSQL) — persists every decision
-    ↓
-UPDATED PRIVACY STATUS
+┌─────────────────────────────────────────────────────┐
+│                   React Frontend                     │
+│  Dashboard · Exposures · Scan · Requests · Activity  │
+└──────────────┬──────────────┬───────────────────────┘
+               │ REST API     │ Socket.IO
+┌──────────────▼──────────────▼───────────────────────┐
+│              Express + Socket.IO Server              │
+│  Auth · Privacy · Agents · Dashboard routes          │
+└──────────────────────┬──────────────────────────────┘
+                       │
+┌──────────────────────▼──────────────────────────────┐
+│              LangGraph Multi-Agent Pipeline          │
+│                                                      │
+│  ORCHESTRATOR → SCOUT → RISK → RIGHTS → GUARDIAN     │
+│                                                      │
+│  Each agent:                                         │
+│   • Reads/writes Prisma DB                           │
+│   • Calls Ollama (LLM) with deterministic fallback   │
+│   • Emits live events via Socket.IO                  │
+└──────────────────────┬──────────────────────────────┘
+                       │
+         ┌─────────────▼────────────┐
+         │   Prisma ORM + SQLite    │
+         │   (PostgreSQL in prod)   │
+         └──────────────────────────┘
 ```
 
 ---
 
-## 🛠 Tech Stack
-
-| Layer      | Technology                          |
-|------------|-------------------------------------|
-| Frontend   | React + Vite + TypeScript + Tailwind |
-| Backend    | Node.js + Express + TypeScript       |
-| AI/Agents  | LangGraph.js + Ollama (local LLM)   |
-| Database   | PostgreSQL + Prisma ORM             |
-| Auth       | JWT + bcrypt                         |
-| Realtime   | Socket.IO                            |
-
-**Cost: ₹0** — runs entirely locally using Ollama.
-
----
-
-## 📁 Project Structure
+## Project Structure
 
 ```
 vision4x-privex/
-├── client/          # React frontend
-├── server/          # Express backend + agents
-├── prisma/          # Database schema
+├── client/                     # React frontend (Vite)
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── layout/         # AppLayout, Sidebar
+│   │   │   └── ui/             # Badge, Card, ErrorBoundary, etc.
+│   │   ├── hooks/
+│   │   │   ├── useAuth.ts      # JWT auth state
+│   │   │   └── useAgentEvents.ts  # Socket.IO event listener
+│   │   ├── pages/
+│   │   │   ├── DashboardPage.tsx
+│   │   │   ├── ScanPage.tsx
+│   │   │   ├── ExposuresPage.tsx
+│   │   │   ├── ExposureDetailPage.tsx
+│   │   │   ├── RiskAnalysisPage.tsx
+│   │   │   ├── PrivacyRequestsPage.tsx
+│   │   │   ├── AttackGraphPage.tsx
+│   │   │   ├── AgentActivityPage.tsx
+│   │   │   ├── FollowUpsPage.tsx
+│   │   │   ├── SettingsPage.tsx
+│   │   │   └── LoginPage.tsx
+│   │   ├── services/
+│   │   │   ├── api.ts          # REST API client
+│   │   │   └── socket.ts       # Socket.IO client
+│   │   └── types/index.ts      # Shared TypeScript types
+│   ├── tailwind.config.js
+│   ├── vite.config.ts
+│   └── package.json
+│
+├── server/                     # Express backend
+│   ├── src/
+│   │   ├── agents/
+│   │   │   ├── orchestrator/   # Plans the workflow
+│   │   │   ├── scout/          # Discovers PII exposures
+│   │   │   ├── risk/           # Scores and explains risk
+│   │   │   ├── rights/         # Generates removal letters
+│   │   │   └── guardian/       # Tracks follow-ups
+│   │   ├── controllers/
+│   │   │   ├── privacyController.ts
+│   │   │   ├── authController.ts
+│   │   │   └── agentController.ts
+│   │   ├── graph/
+│   │   │   └── privacyGraph.ts # LangGraph state machine
+│   │   ├── middleware/
+│   │   │   ├── auth.ts         # JWT middleware
+│   │   │   └── errorHandler.ts
+│   │   ├── routes/
+│   │   │   ├── auth.ts
+│   │   │   ├── privacy.ts
+│   │   │   ├── agents.ts
+│   │   │   └── dashboard.ts
+│   │   ├── scripts/
+│   │   │   └── seed.ts         # Demo data seeder
+│   │   ├── services/
+│   │   │   ├── emailService.ts
+│   │   │   ├── ollamaService.ts
+│   │   │   └── requestWorkflow.ts
+│   │   ├── tools/
+│   │   │   └── demoDataset.ts  # Controlled demo PII findings
+│   │   ├── types/index.ts
+│   │   └── utils/
+│   │       ├── jwt.ts
+│   │       ├── logger.ts
+│   │       ├── prisma.ts
+│   │       └── socketEmitter.ts
+│   ├── .env.example
+│   ├── tsconfig.json
+│   └── package.json
+│
+├── prisma/
+│   └── schema.prisma           # Database schema (7 models)
+│
+├── .env.example                # Root env template (Prisma CLI)
+├── .gitignore
+├── render.yaml                 # Render.com deployment config
+├── package.json                # Workspace root
 └── README.md
 ```
 
 ---
 
-## 🚀 Quick Start
+## Quick Start (Local Demo)
 
 ### Prerequisites
+
 - Node.js 18+
-- PostgreSQL running locally
-- Ollama installed with `llama3.2` or `mistral` pulled
+- npm 9+
+- *(Optional)* [Ollama](https://ollama.com) for local LLM — app works without it using fallback text
 
-### 1. Clone & Install
+### 1. Clone the repository
+
 ```bash
-git clone https://github.com/your-org/vision4x-privex.git
-cd vision4x-privex
+git clone https://github.com/rameshdhanush512-lab/Vision4X-Bit-N-Build-2026.git
+cd Vision4X-Bit-N-Build-2026
+```
+
+### 2. Install dependencies
+
+```bash
+# Install all workspaces
 npm install
-cd server && npm install
-cd ../client && npm install
+cd server && npm install --legacy-peer-deps && cd ..
+cd client && npm install && cd ..
 ```
 
-### 2. Configure Environment
+### 3. Configure environment
+
 ```bash
+# Server environment
 cp server/.env.example server/.env
-# Edit server/.env with your DB credentials and JWT secret
+# Edit server/.env — the defaults work for local SQLite demo
 ```
 
-### 3. Database Setup
+### 4. Set up the database
+
 ```bash
-cd server
-npx prisma generate
-npx prisma db push
+# Push schema to create local SQLite database
+npx prisma db push --schema prisma/schema.prisma
+
+# Seed with demo data (creates demo user + pre-populated dashboard)
+cd server && npx ts-node src/scripts/seed.ts && cd ..
 ```
 
-### 4. Pull Ollama Model
-```bash
-ollama pull llama3.2
-# or: ollama pull mistral
-```
+### 5. Run the application
 
-### 5. Run
 ```bash
-# From root
+# Start both server and client concurrently
 npm run dev
 ```
 
-Frontend: http://localhost:5173  
-Backend:  http://localhost:3001
+- Frontend: http://localhost:5173
+- Backend API: http://localhost:3001
+- Health check: http://localhost:3001/health
+
+### 6. Log in with demo credentials
+
+```
+Email:    alex.kumar@demo.privex
+Password: demo1234
+```
 
 ---
 
-## 🎯 Demo Mode
+## Environment Variables
 
-Login with the demo account or register, then press **"Run Privacy Scan"**.
+### `server/.env`
 
-The system will visibly execute the full 5-agent workflow in real time:
-1. Scout discovers 6 fictional exposures for demo user "Alex Kumar"
-2. Risk Agent scores and explains each one
-3. Rights Agent generates removal requests for HIGH/CRITICAL exposures
-4. Guardian Agent creates follow-up schedules
-5. Dashboard updates with Privacy Protection Score
-
----
-
-## 🔐 Security
-
-- Passwords hashed with bcrypt (12 rounds)
-- JWT auth on all protected routes
-- No real personal data collected
-- Demo uses entirely fictional data
-- `.env` never committed
+| Variable | Required | Description |
+|---|---|---|
+| `PORT` | No | Server port (default: `3001`) |
+| `NODE_ENV` | No | `development` or `production` |
+| `DATABASE_URL` | Yes | SQLite: `file:../prisma/dev.db` or PostgreSQL connection string |
+| `DIRECT_URL` | Prod only | Direct PostgreSQL URL (bypasses PgBouncer for migrations) |
+| `JWT_SECRET` | Yes | Min 32-char random string for signing JWTs |
+| `JWT_EXPIRES_IN` | No | JWT expiry (default: `7d`) |
+| `OLLAMA_BASE_URL` | No | Ollama server URL (default: `http://localhost:11434`) |
+| `OLLAMA_MODEL` | No | Model name (default: `llama3.2`) |
+| `CLIENT_ORIGIN` | Yes | Frontend URL for CORS (default: `http://localhost:5173`) |
 
 ---
 
-## 👥 Team Vision4X
+## Ollama / LLM Setup (Optional)
 
-Built in 24 hours for the Digital Identity & Sovereign Privacy Protection hackathon track.
+PRIVEX uses Ollama for local LLM inference. All agent outputs have deterministic fallbacks — the app works fully without Ollama.
+
+```bash
+# Install Ollama from https://ollama.com
+ollama pull llama3.2
+ollama serve
+```
+
+The server auto-detects Ollama at `OLLAMA_BASE_URL`. If unavailable, agents use built-in template responses.
+
+---
+
+## API Overview
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/api/auth/register` | Create account |
+| `POST` | `/api/auth/login` | Login, returns JWT |
+| `GET` | `/api/auth/me` | Get current user |
+| `GET` | `/api/dashboard` | Privacy score + summary stats |
+| `POST` | `/api/privacy/scan` | Start 5-agent privacy scan |
+| `GET` | `/api/privacy/exposures` | List all exposures |
+| `GET` | `/api/privacy/exposures/:id` | Exposure detail |
+| `POST` | `/api/privacy/analyze` | Re-analyse a specific exposure |
+| `GET` | `/api/privacy/requests` | List privacy requests |
+| `POST` | `/api/privacy/request` | Create a new request |
+| `GET` | `/api/privacy/requests/:id` | Request detail |
+| `POST` | `/api/privacy/requests/:id/send` | Send request via email |
+| `PATCH` | `/api/privacy/requests/:id/status` | Update request status |
+| `GET` | `/api/privacy/followups` | List follow-ups |
+| `POST` | `/api/privacy/verify` | Record verification result |
+| `GET` | `/api/agents/runs` | Agent run history |
+| `GET` | `/health` | Server health check |
+
+All protected endpoints require `Authorization: Bearer <token>`.
+
+---
+
+## Deployment
+
+### Backend — Render.com
+
+1. Connect your GitHub repository to [Render](https://render.com)
+2. Render auto-detects `render.yaml` — it configures a Node.js web service
+3. Add environment variables in Render dashboard:
+   - `DATABASE_URL` — your PostgreSQL/Supabase connection string
+   - `DIRECT_URL` — direct database URL
+4. After first deploy, open Render shell and run:
+   ```bash
+   npx prisma db push --schema ../prisma/schema.prisma
+   npx ts-node src/scripts/seed.ts
+   ```
+
+### Frontend — Vercel
+
+1. Import repository in [Vercel](https://vercel.com)
+2. Set **Root Directory** to `client`
+3. Add environment variable:
+   - `VITE_API_URL` = `https://your-render-service.onrender.com`
+4. Deploy
+
+---
+
+## Demo
+
+The seed script pre-populates the dashboard with:
+
+- **6 privacy exposures** across realistic data sources (PublicRecords Directory, Leaked Forum Archive, Marketing Data Exchange, etc.)
+- **Risk assessments** for each exposure (2 CRITICAL, 2 HIGH, 1 MEDIUM, 1 LOW)
+- **2 data-removal requests** ready to send
+- **Follow-up reminders** scheduled 14 days out
+- **1 resolved exposure** to demonstrate the full lifecycle
+- **5 agent run records** showing the complete workflow history
+
+> **Note:** All demo data is entirely fictional. No real personal information is used or collected.
+
+---
+
+## Team
+
+**Vision4X** — Bit N Build 2026 Hackathon
+
+---
+
+## Disclaimer
+
+PRIVEX is a hackathon demonstration project. The privacy removal requests generated are templates and do not constitute legal advice. For real data removal, consult a qualified privacy professional.

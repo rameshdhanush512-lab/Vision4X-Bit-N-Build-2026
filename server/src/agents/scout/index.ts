@@ -58,11 +58,11 @@ export async function scoutAgent(state: PrivacyWorkflowState): Promise<PrivacyWo
         data: {
           userId,
           source: finding.source,
-          dataTypes: finding.dataTypes,
+          dataTypes: JSON.stringify(finding.dataTypes),
           severityCandidate: finding.severityCandidate,
           confidence: finding.confidence,
           evidence: finding.evidence,
-          rawData: finding.rawData as any,
+          rawData: JSON.stringify(finding.rawData),
           status: 'DETECTED',
         },
       });
@@ -73,7 +73,7 @@ export async function scoutAgent(state: PrivacyWorkflowState): Promise<PrivacyWo
       data: {
         status: 'COMPLETED',
         result: `${findings.length} exposures discovered`,
-        metadata: { count: findings.length },
+        metadata: JSON.stringify({ count: findings.length }),
         completedAt: new Date(),
       },
     });

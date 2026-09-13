@@ -125,14 +125,14 @@ Do not use technical jargon. Do not repeat the risk level in the first word.`;
             riskLevel: result.riskLevel as any,
             riskScore: result.riskScore,
             explanation: result.explanation,
-            factors: result.factors,
+            factors: JSON.stringify(result.factors),
             recommendation: result.recommendation,
           },
           update: {
             riskLevel: result.riskLevel as any,
             riskScore: result.riskScore,
             explanation: result.explanation,
-            factors: result.factors,
+            factors: JSON.stringify(result.factors),
             recommendation: result.recommendation,
           },
         });
@@ -153,7 +153,7 @@ Do not use technical jargon. Do not repeat the risk level in the first word.`;
       data: {
         status: 'COMPLETED',
         result: summary,
-        metadata: { criticalCount, highCount, total: findings.length },
+        metadata: JSON.stringify({ criticalCount, highCount, total: findings.length }),
         completedAt: new Date(),
       },
     });

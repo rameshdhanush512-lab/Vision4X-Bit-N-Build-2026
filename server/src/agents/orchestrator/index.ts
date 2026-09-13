@@ -60,7 +60,7 @@ Reply with a single short paragraph (2-3 sentences) explaining the plan. Be dire
       data: {
         status: 'COMPLETED',
         result: `Plan created: ${plan.join(' → ')}`,
-        metadata: { plan, planReasoning, usedLLM },
+        metadata: JSON.stringify({ plan, planReasoning, usedLLM }),
         completedAt: new Date(),
       },
     });

@@ -46,7 +46,7 @@ function routeAfterRisk(state: PrivacyWorkflowState): string {
 
 // ── Build and compile the graph
 function buildPrivacyGraph() {
-  const graph = new StateGraph<PrivacyWorkflowState>({ channels: workflowChannels as any });
+  const graph: any = new StateGraph({ channels: workflowChannels as any });
 
   graph.addNode('orchestrator', orchestratorAgent as any);
   graph.addNode('scout', scoutAgent as any);

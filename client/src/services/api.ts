@@ -3,7 +3,7 @@
 // All HTTP calls to the Express backend
 // ─────────────────────────────────────────────
 
-const BASE = '/api';
+const BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api';
 
 function getToken(): string | null {
   return localStorage.getItem('privex_token');
@@ -24,7 +24,7 @@ async function request<T>(
   try {
     res = await fetch(`${BASE}${path}`, { ...options, headers });
   } catch {
-    throw new Error('Backend unavailable. Start the server on http://localhost:3001.');
+    throw new Error('Backend unavailable. Please try again later.');
   }
 
   if (!res.ok) {

@@ -1,3 +1,7 @@
+# ─────────────────────────────────────────────
+# PRIVEX — .gitignore
+# ─────────────────────────────────────────────
+
 # Dependencies
 node_modules/
 **/node_modules/
@@ -8,32 +12,71 @@ build/
 **/dist/
 **/build/
 
-# Environment files — NEVER commit these
+# ── Environment files — NEVER commit real secrets
 .env
-.env.local
-.env.development
-.env.production
+.env.*
+!.env.example
 **/.env
-**/.env.local
+**/.env.*
+!**/.env.example
 
-# Prisma
+# ── SQLite database files (local only)
+*.db
+*.db-shm
+*.db-wal
+prisma/dev.db
+prisma/dev.db-shm
+prisma/dev.db-wal
+
+# ── Prisma generated (regenerated via `prisma generate`)
 prisma/migrations/
 
-# Logs
+# ── Logs
 *.log
+logs/
 npm-debug.log*
 yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 
-# OS
+# ── OS files
 .DS_Store
+.DS_Store?
+._*
 Thumbs.db
+ehthumbs.db
+Desktop.ini
 
-# IDE
+# ── IDE / Editor
 .vscode/settings.json
+.vscode/launch.json
 .idea/
+*.swp
+*.swo
+*~
 
-# TypeScript
+# ── TypeScript build info
 *.tsbuildinfo
 
-# Vite
+# ── Vite cache
 client/.vite/
+**/.vite/
+
+# ── Coverage & test artefacts
+coverage/
+.nyc_output/
+
+# ── Python (if any tooling)
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+venv/
+.venv/
+env/
+
+# ── Temp files
+*.tmp
+*.temp
+.cache/

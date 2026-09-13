@@ -74,7 +74,7 @@ export async function guardianAgent(state: PrivacyWorkflowState): Promise<Privac
       data: {
         status: 'COMPLETED',
         result: `${followUpCount} follow-up schedules created`,
-        metadata: { followUpCount },
+        metadata: JSON.stringify({ followUpCount }),
         completedAt: new Date(),
       },
     });

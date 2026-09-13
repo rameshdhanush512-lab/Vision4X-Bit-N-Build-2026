@@ -159,11 +159,11 @@ async function seed() {
       data: {
         userId: user.id,
         source: finding.source,
-        dataTypes: finding.dataTypes,
+        dataTypes: JSON.stringify(finding.dataTypes),
         severityCandidate: finding.severityCandidate,
         confidence: finding.confidence,
         evidence: finding.evidence,
-        rawData: finding.rawData as any,
+        rawData: JSON.stringify(finding.rawData),
         status: 'ACTION_REQUIRED',
       },
     });
@@ -176,7 +176,7 @@ async function seed() {
         riskLevel: risk.riskLevel as any,
         riskScore: risk.riskScore,
         explanation: risk.explanation,
-        factors: risk.factors,
+        factors: JSON.stringify(risk.factors),
         recommendation: risk.recommendation,
       },
     });

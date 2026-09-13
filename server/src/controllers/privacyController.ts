@@ -6,6 +6,28 @@ import { logger } from '../utils/logger';
 import { sendPrivacyRequestEmail } from '../services/emailService';
 import { runDemoProcessingWorkflow, ActivityEntry } from '../services/requestWorkflow';
 
+// ── SQLite stores arrays/JSON as strings — parse them back for the client
+function parseExposure(e: any) {
+  return {
+    ...e,
+    dataTypes: (() => { try { return JSON.parse(e.dataTypes || '[]'); } catch { return []; } })(),
+    rawData:   (() => { try { return JSON.parse(e.rawData   || 'null'); } catch { return null; } })(),
+    riskAssessment: e.riskAssessment ? {
+      ...e.riskAssessment,
+      factors: (() => { try { return JSON.parse(e.riskAssessment.factors || '[]'); } catch { return []; } })(),
+    } : undefined,
+  };
+}
+
+function parsePrivacyRequest(r: any) {
+  return {
+    ...r,
+    activityLog: (() => { try { return JSON.parse(r.activityLog || '[]'); } catch { return []; } })(),
+    emailLog:    (() => { try { return JSON.parse(r.emailLog   || 'null'); } catch { return null; } })(),
+    exposure: r.exposure ? parseExposure(r.exposure) : undefined,
+  };
+}
+
 // POST /api/privacy/analyze  — re-run risk analysis on a specific exposure
 export async function analyzeExposure(req: Request, res: Response): Promise<void> {
   const { exposureId } = req.body;
@@ -27,21 +49,22 @@ export async function analyzeExposure(req: Request, res: Response): Promise<void
 
     // Import lazily to avoid circular deps at module load
     const { callOllama } = await import('../services/ollamaService');
+    const parsedDataTypes: string[] = JSON.parse(exposure.dataTypes || '[]');
 
     const prompt = `You are a privacy risk analyst. Analyse this exposure and explain the risk to a non-technical person.
 
 Source: "${exposure.source}"
-Exposed data: ${exposure.dataTypes.join(', ')}
+Exposed data: ${parsedDataTypes.join(', ')}
 Evidence: ${exposure.evidence}
 Confidence: ${Math.round(exposure.confidence * 100)}%
 
 Write ONE paragraph (3-4 sentences) explaining WHY this is risky and what a bad actor could do.`;
 
-    const fallback = `This exposure from ${exposure.source} reveals ${exposure.dataTypes.join(', ')} with ${Math.round(exposure.confidence * 100)}% confidence. This data could be used to target you with phishing or identity abuse attacks.`;
+    const fallback = `This exposure from ${exposure.source} reveals ${parsedDataTypes.join(', ')} with ${Math.round(exposure.confidence * 100)}% confidence. This data could be used to target you with phishing or identity abuse attacks.`;
 
     const { text: explanation, usedLLM } = await callOllama(prompt, fallback);
 
-    res.json({ exposureId, explanation, usedLLM, dataTypes: exposure.dataTypes, source: exposure.source });
+    res.json({ exposureId, explanation, usedLLM, dataTypes: parsedDataTypes, source: exposure.source });
   } catch (error) {
     logger.error('analyzeExposure failed', error);
     res.status(500).json({ error: 'Analysis failed' });
@@ -100,7 +123,7 @@ export async function getExposures(req: Request, res: Response): Promise<void> {
       include: { riskAssessment: true },
       orderBy: { detectedAt: 'desc' },
     });
-    res.json({ exposures });
+    res.json({ exposures: exposures.map(parseExposure) });
   } catch (error) {
     logger.error('getExposures failed', error);
     res.status(500).json({ error: 'Failed to fetch exposures' });
@@ -122,7 +145,7 @@ export async function getExposureById(req: Request, res: Response): Promise<void
       res.status(404).json({ error: 'Exposure not found' });
       return;
     }
-    res.json({ exposure });
+    res.json({ exposure: parseExposure(exposure) });
   } catch (error) {
     logger.error('getExposureById failed', error);
     res.status(500).json({ error: 'Failed to fetch exposure' });
@@ -179,7 +202,7 @@ export async function getPrivacyRequests(req: Request, res: Response): Promise<v
       include: { exposure: { select: { source: true, dataTypes: true } } },
       orderBy: { createdAt: 'desc' },
     });
-    res.json({ requests });
+    res.json({ requests: requests.map(parsePrivacyRequest) });
   } catch (error) {
     logger.error('getPrivacyRequests failed', error);
     res.status(500).json({ error: 'Failed to fetch requests' });
@@ -315,7 +338,7 @@ export async function getPrivacyRequestById(req: Request, res: Response): Promis
       res.status(404).json({ error: 'Request not found' });
       return;
     }
-    res.json({ request });
+    res.json({ request: parsePrivacyRequest(request) });
   } catch (error) {
     logger.error('getPrivacyRequestById failed', error);
     res.status(500).json({ error: 'Failed to fetch request' });
@@ -356,7 +379,7 @@ export async function sendPrivacyRequest(req: Request, res: Response): Promise<v
 
     await prisma.privacyRequest.update({
       where: { id: requestId },
-      data: { activityLog: initialLog as any },
+      data: { activityLog: JSON.stringify(initialLog) } as any,
     });
 
     // ── 2. Send the actual email (Ethereal demo SMTP)
@@ -382,7 +405,7 @@ export async function sendPrivacyRequest(req: Request, res: Response): Promise<v
       ];
       await prisma.privacyRequest.update({
         where: { id: requestId },
-        data: { status: 'FAILED', activityLog: failLog as any },
+        data: { status: 'FAILED', activityLog: JSON.stringify(failLog) } as any,
       });
       res.status(502).json({ error: 'Email sending failed', detail: emailResult.error });
       return;
@@ -403,9 +426,9 @@ export async function sendPrivacyRequest(req: Request, res: Response): Promise<v
       data: {
         status: 'SENT',
         sentAt: new Date(),
-        emailLog: emailResult as any,
-        activityLog: sentLog as any,
-      },
+        emailLog: JSON.stringify(emailResult),
+        activityLog: JSON.stringify(sentLog),
+      } as any,
     });
 
     // Update linked exposure

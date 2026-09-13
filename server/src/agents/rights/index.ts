@@ -155,7 +155,7 @@ Write ONLY the letter text, starting with "Date:".`;
       data: {
         status: 'COMPLETED',
         result: `${privacyRequests.length} removal requests prepared`,
-        metadata: { count: privacyRequests.length },
+        metadata: JSON.stringify({ count: privacyRequests.length }),
         completedAt: new Date(),
       },
     });
